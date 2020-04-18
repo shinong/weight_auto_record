@@ -1,7 +1,7 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import QThread,QTimer,pyqtSignal
 from PyQt5.QtWidgets import QLineEdit,QDialog,QDialogButtonBox,QFormLayout
-import new_mainwindow as gui
+import mainwindow as gui
 import os.path
 from os import path
 import serial
