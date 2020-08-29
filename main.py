@@ -1,7 +1,8 @@
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import QThread,QTimer,pyqtSignal
 from PyQt5.QtWidgets import QLineEdit,QDialog,QDialogButtonBox,QFormLayout
-import mainwindow as gui
+import new_mainwindow as gui
+import os
 import os.path
 from os import path
 import serial
@@ -9,15 +10,16 @@ import serial.tools.list_ports
 import csv
 import re
 from pdf import pdfWeightGen
-from math import isclose
 
 ### this specifies the abslute path of the code, that will then be patch to 
 # the subfolder path for readind and saving data
 script_dir = path.dirname(__file__)
 data_storage_path = 'data/'
 db_storage_path = 'db/'
+completed_path = 'finished/'
 abs_file_path = path.join(script_dir,data_storage_path)
 abs_db_path = path.join(script_dir,db_storage_path)
+abs_completed_path = path.join(script_dir,completed_path)
 
 
 class mainWindow(QtWidgets.QMainWindow,gui.Ui_MainWindow):
@@ -38,6 +40,7 @@ class mainWindow(QtWidgets.QMainWindow,gui.Ui_MainWindow):
         self.measurementStatus = None
         self.checkData()
         self.pdfGen.clicked.connect(self.pdfGenerate)
+        self.init_weight = []
 
     def serialPortSelectInit(self):
         self.comPortSelect.addItems([p.device for p in self.allPorts])
@@ -128,34 +131,55 @@ class mainWindow(QtWidgets.QMainWindow,gui.Ui_MainWindow):
     
     #this function fill the weight received from the serial port and fill the str into the cell
     # the fucniton is triggered by the serial thread signal
+    # the background color must be set after the cell has been filled!!!(not know the reason yet)
     def fillCell(self,data):
         if self.measurementStatus != None and self.measurementStatus <3 and self.posIndex <25:
             print('connected')
             data = re.findall("\d+\.\d+",data)[0]
             print(data)
-            '''
-            if self.fileSelect.text()[0] == 'p':
-                if data == self.PrunBuffer[self.posIndex][0]:
-                    print('matched!')
-                else:
-                    print('not matched!')
-            else:
-                if data == self.JRunBuffer[self.posIndex][0]:
-                    print('matched!')
-                else:
-                    print('not matched!')
-            '''
             self.tableWidget.setItem(self.posIndex,self.measurementStatus+1,QtWidgets.QTableWidgetItem(data))
+            if self.measurementStatus == 0:
+                if self.fileSelect.currentText()[0] == 'p':
+                    if abs(float(data)-float(self.PrunBuffer[self.posIndex][0]))<0.2:
+                        self.tableWidget.item(self.posIndex,self.measurementStatus+1).setBackground(QtGui.QColor('green'))
+                    else:
+                        self.tableWidget.item(self.posIndex,self.measurementStatus+1).setBackground(QtGui.QColor('red'))
+                else:
+                    if abs(float(data) - float(self.JRunBuffer[self.posIndex][0]))<0.2:
+                        self.tableWidget.item(self.posIndex,self.measurementStatus+1).setBackground(QtGui.QColor('green'))
+                    else:
+                        self.tableWidget.item(self.posIndex,self.measurementStatus+1).setBackground(QtGui.QColor('red'))
+                        print("red")
+            elif self.measurementStatus == 1:
+                init_weight = float(self.tableWidget.item(self.posIndex,1).text())
+                if self.fileSelect.currentText()[0] == 'p':
+                    if (251 < float(data)-init_weight < 252):
+                        self.tableWidget.item(self.posIndex,self.measurementStatus+1).setBackground(QtGui.QColor('green'))
+                    else:
+                        self.tableWidget.item(self.posIndex,self.measurementStatus+1).setBackground(QtGui.QColor('red'))
+                else:
+                    if (251 < float(data)-init_weight < 252):
+                        self.tableWidget.item(self.posIndex,self.measurementStatus+1).setBackground(QtGui.QColor('green'))
+                    else:
+                        self.tableWidget.item(self.posIndex,self.measurementStatus+1).setBackground(QtGui.QColor('red'))
+                        print("red")
+            elif self.measurementStatus == 2:
+                init_weight = float(self.tableWidget.item(self.posIndex,1).text())
+                print(init_weight)
+                if self.fileSelect.currentText()[0] == 'p':
+                    if (12 <float(data)- init_weight < 19.0):
+                        self.tableWidget.item(self.posIndex,self.measurementStatus+1).setBackground(QtGui.QColor('green'))
+                    else:
+                        self.tableWidget.item(self.posIndex,self.measurementStatus+1).setBackground(QtGui.QColor('red'))
+                else:
+                    if (12 < float(data)- init_weight < 19):
+                        self.tableWidget.item(self.posIndex,self.measurementStatus+1).setBackground(QtGui.QColor('green'))
+                    else:
+                        self.tableWidget.item(self.posIndex,self.measurementStatus+1).setBackground(QtGui.QColor('red'))
+                        print("red")
             self.posIndex = self.posIndex+1
         else:
             print('error,file might not be slected or all weight are already measured!')
-
-    # this funciton will update the backgournd color of the cell by comparing the values 
-    def setColor(self,value_a,value_b,position1,position2,tolerance):
-        if isclose(value_a,value_b,abs_tol=tolerance):
-            self.tableWidget.item(position1,position2).setBackground(QtGui.QColor('green'))
-        else:
-            self.tableWidget.item(position1,position2).setBackground(QtGui.QColor('green'))
     
     def checkData(self):
         # this function read the prestored dry cell weight and temporayly save them to the lists
@@ -170,6 +194,8 @@ class mainWindow(QtWidgets.QMainWindow,gui.Ui_MainWindow):
         if len(templist) == 25 and len(templist[0])==4 and len(templist[24]) ==4:
             pdfWeightGen(templist)
             print('weight data generated to file'+self.read_filename)
+            os.rename(self.read_filename,abs_completed_path + self.fileSelect.currentText() + '.csv')
+            print("file {} moved to finished folder".format(self.read_filename))
         else:
             print(len(templist),len(templist[0]),len(templist[24]))
             print('error! table might not complete')
